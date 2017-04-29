@@ -1,0 +1,249 @@
+---
+title: "NHAHES_Data_Analysis"
+author: "Tanmaya Tripathi"
+date: "23 April 2017"
+output: 
+  html_document:
+    fig_height: 5
+    fig_width: 10
+    toc: yes
+    toc_depth: 5
+  pdf_document:
+    toc: yes
+  word_document: default
+---
+
+###__Libraries used__  
+* library(sqldf)
+* library(knitr)  
+* library(ggplot2)  
+* library(corrplot)  
+* library(knitr)  
+* library(rpart)  
+* library(plyr)  
+* library(caTools)  
+* library(randomForest)  
+* library(ROCR)
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+library(sqldf)
+library(knitr)
+library(ggplot2)
+library(corrplot)
+library(knitr)  
+library(rpart) 
+library(plyr)  
+library(caTools)  
+library(randomForest)
+library(ROCR)
+options(scipen=999)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+###__Loading the Complete Data__
+```{r warning=FALSE, message=FALSE}
+complete_data <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/complete_data.csv", header = TRUE, sep = ",")
+```
+
+###__Converting the dataset columns to appropriate numerics and factors__
+```{r warning=FALSE, message=FALSE}
+complete_data$RIDAGEYR <- as.numeric(complete_data$RIDAGEYR)
+complete_data$RIDRETH1 <- as.factor(complete_data$RIDRETH1)
+complete_data$DMDHHSIZ <- as.factor(complete_data$DMDHHSIZ)
+complete_data$INDHHIN2 <- as.factor(complete_data$INDHHIN2)
+complete_data$DMDEDUC2 <- as.factor(complete_data$DMDEDUC2)
+complete_data$ALQ101 <- as.factor(complete_data$ALQ101)
+complete_data$BPQ020 <- as.factor(complete_data$BPQ020)
+complete_data$BPQ080 <- as.factor(complete_data$BPQ080)
+complete_data$DED031 <- as.factor(complete_data$DED031)
+complete_data$DEQ034A <- as.factor(complete_data$DEQ034A)
+complete_data$DEQ034D <- as.factor(complete_data$DEQ034D)
+complete_data$DIQ010 <- as.factor(complete_data$DIQ010)
+complete_data$DIQ050 <- as.factor(complete_data$DIQ050)
+complete_data$DBQ197 <- as.factor(complete_data$DBQ197)
+complete_data$DBQ229 <- as.factor(complete_data$DBQ229)
+complete_data$DBQ235A <- as.factor(complete_data$DBQ235A)
+complete_data$DBQ235B <- as.factor(complete_data$DBQ235B)
+complete_data$DBQ235C <- as.factor(complete_data$DBQ235C)
+complete_data$DBD905 <- as.numeric(complete_data$DBD905)
+complete_data$DBD910 <- as.numeric(complete_data$DBD910)
+complete_data$DUQ217 <- as.factor(complete_data$DUQ217)
+complete_data$DUQ219 <- as.factor(complete_data$DUQ219)
+complete_data$HIQ011 <- as.factor(complete_data$HIQ011)
+complete_data$HIQ011 <- as.factor(complete_data$HIQ011)
+complete_data$HUQ010 <- as.factor(complete_data$HUQ010)
+complete_data$HUQ030 <- as.factor(complete_data$HUQ030)
+complete_data$HOQ065 <- as.factor(complete_data$HOQ065)
+complete_data$KIQ022 <- as.factor(complete_data$KIQ022)
+complete_data$KIQ026 <- as.factor(complete_data$KIQ026)
+complete_data$URDFLOW1 <- as.numeric(complete_data$URDFLOW1)
+complete_data$URDFLOW1_STATE <- as.factor(complete_data$URDFLOW1_STATE)
+```
+
+###__Converting Factors to Dummy Columns__
+```{r warning=FALSE, message=FALSE}
+complete_data_dummy_matrix <- model.matrix(~., data=complete_data)[,-1]
+complete_data_dummy <- as.data.frame(complete_data_dummy_matrix)
+
+numeric_val <- match(c("X", "SEQN", "RIDAGEYR", "DBD905", "DBD910", "URDFLOW1"), colnames(complete_data_dummy))
+
+#str(complete_data_dummy)
+
+for(i in 1:nrow(complete_data_dummy)){
+  for(j in 1:ncol(complete_data_dummy))
+  {
+    if(!j %in% numeric_val)
+      complete_data_dummy[i,j] <- ifelse(complete_data_dummy[i,j]==1, "Yes", "No")
+  }
+}
+
+for(i in 1:ncol(complete_data_dummy)){
+      # if a column is categorical
+      if(!i %in% numeric_val)
+        complete_data_dummy[,i] <- as.factor(complete_data_dummy[,i])
+}
+
+write.csv(complete_data_dummy, paste("M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/complete_data_dummy.csv"))
+```
+
+###__Developing the Logistic Regression Model__
+```{r warning=FALSE, message=FALSE}
+log_reg_model <- glm(URDFLOW1_STATENor ~ . - URDFLOW1 - X - SEQN, data = complete_data_dummy, family = "binomial")
+summary(log_reg_model)
+```
+
+From the above summary we can see that columns DEQ034D2, DEQ034D3, DEQ034D4 and DEQ034D5 are significant. However, one column in particular, DEQ034D4 is highly significant. The above columns have all been derived from the column DEQ034D.  
+
+The definition of the column is as follows-  
+The column is a part of the Deramtology dataset in the NHANES data. The user is asked the question whether they use sunscreen or not.  
+```{r warning=FALSE, message=FALSE}
+Code_or_Value <- c(1, 2, 3, 4, 5) 
+Value_Description <- c("Always", "Most of the time", "Sometimes", "Rarely", "Never") 
+sunscreen_code <- data.frame(Code_or_Value, Value_Description)
+kable(sunscreen_code, format = 'markdown')
+```
+
+####__Understanding relation between Urine Flow Rate and Use of sunscreen__  
+```{r warning=FALSE, message=FALSE}
+ggplot(complete_data, aes(x = DEQ034D, y = URDFLOW1, label = URDFLOW1)) +
+    geom_point(aes(alpha=.02)) + 
+    geom_text(hjust = 1, size = 2) +
+    scale_size(range = c(1,15)) +
+    theme_bw()
+```
+
+From the above graph we can see that there is a slight correlation. As your rate of use of sunscreen decreases the urine flow rate increases. However, the above result should be taken with a pinch of salt. As often said, Correlation is not Causation. There can be multiple reasons as to why the above correlation is occuring-  
+1. The model maybe incorrect  
+2. There might be another variable which correlates with the above two fields - for eg. people who go out in the sun for a majority of their time would usually end up drinking more water which leads to a more stronger urine flow.  
+
+To understand the results we need to analyze the data further.  
+
+###__Developing the Decision Tree Model__
+```{r warning=FALSE, message=FALSE}
+
+Model_Name <- character(2)
+Train_Accuracy <- double(2)
+Test_Accuracy <- double(2)
+
+Model_Name[1] <- "Decision Tree"
+Model_Name[2] <- "Random Forest"
+
+set.seed(101) 
+complete_data_dummy$split_var <- sample.split(complete_data_dummy$URDFLOW1_STATENor, SplitRatio = .50)
+complete_data_dummy_train <- subset(complete_data_dummy, split_var == TRUE)
+complete_data_dummy_test <- subset(complete_data_dummy, split_var == FALSE)
+
+decision_tree_model <- rpart(URDFLOW1_STATENor ~ . - URDFLOW1 - X - SEQN - split_var,
+  	method="class", data=complete_data_dummy_train)
+#printcp(decision_tree_model)
+summary(decision_tree_model)
+
+complete_data_dummy_train$dec_tree_pred <- predict(decision_tree_model, complete_data_dummy_train, type = 'class')
+complete_data_dummy_test$dec_tree_pred <- predict(decision_tree_model, complete_data_dummy_test, type = 'class')
+
+table(complete_data_dummy_train$dec_tree_pred, complete_data_dummy_train$URDFLOW1_STATENor)
+table(complete_data_dummy_test$dec_tree_pred, complete_data_dummy_test$URDFLOW1_STATENor)
+
+Train_Accuracy[1] <- 100*sum((complete_data_dummy_train$URDFLOW1_STATENor == "Yes" & complete_data_dummy_train$dec_tree_pred == "Yes") | 
+      (complete_data_dummy_train$URDFLOW1_STATENor == "No" & complete_data_dummy_train$dec_tree_pred == "No"))/nrow(complete_data_dummy_train)
+Test_Accuracy[1] <- 100*sum((complete_data_dummy_test$URDFLOW1_STATENor == "Yes" & complete_data_dummy_test$dec_tree_pred == "Yes") | 
+      (complete_data_dummy_test$URDFLOW1_STATENor == "No" & complete_data_dummy_test$dec_tree_pred == "No"))/nrow(complete_data_dummy_test)
+```
+
+###__Developing the Random Forest Model__
+```{r warning=FALSE, message=FALSE}
+rand_forest_model <- randomForest(URDFLOW1_STATENor ~ . - URDFLOW1 - X - SEQN - split_var,
+                      data=complete_data_dummy_train, 
+                      importance=TRUE)
+
+varImpPlot(rand_forest_model)
+```
+
+As you can see from the above model Random Forest is providing a very poor accuracy.  
+
+Predicting the outcomes-  
+```{r warning=FALSE, message=FALSE}
+complete_data_dummy_train$rand_for_pred <- predict(rand_forest_model, complete_data_dummy_train, type = 'class')
+complete_data_dummy_test$rand_for_pred <- predict(rand_forest_model, complete_data_dummy_test, type = 'class')
+
+table(complete_data_dummy_train$rand_for_pred, complete_data_dummy_train$URDFLOW1_STATENor)
+table(complete_data_dummy_test$rand_for_pred, complete_data_dummy_test$URDFLOW1_STATENor)
+
+Train_Accuracy[2] <- 100*sum((complete_data_dummy_train$URDFLOW1_STATENor == "Yes" & complete_data_dummy_train$rand_for_pred == "Yes") | 
+      (complete_data_dummy_train$URDFLOW1_STATENor == "No" & complete_data_dummy_train$rand_for_pred == "No"))/nrow(complete_data_dummy_train)
+Test_Accuracy[2] <- 100*sum((complete_data_dummy_test$URDFLOW1_STATENor == "Yes" & complete_data_dummy_test$rand_for_pred == "Yes") | 
+      (complete_data_dummy_test$URDFLOW1_STATENor == "No" & complete_data_dummy_test$rand_for_pred == "No"))/nrow(complete_data_dummy_test)
+
+accuracy_data <- data.frame(Model_Name,
+                            Train_Accuracy,
+                            Test_Accuracy, stringsAsFactors = FALSE)
+
+kable(accuracy_data, format = 'markdown')
+```
+
+As you can see from above Random Forest performed exceptionally for the training set. However, the accuracy was on par with Decision Tree for Test set. This shows that there is overfitting in the model.  
+
+###__Developing the ROC curve__
+```{r warning=FALSE, message=FALSE}
+roc_log_reg_pred_raw <- predict(log_reg_model, complete_data_dummy, type = 'response')
+
+decision_tree_model <- rpart(URDFLOW1_STATENor ~ . - URDFLOW1 - X - SEQN - split_var, method="class", data=complete_data_dummy)
+roc_dec_tree_pred_raw <- predict(decision_tree_model, complete_data_dummy, type = 'prob')
+#complete_data_dummy$dec_tree_pred <- dec_tree_pred_raw[,2]
+
+rand_forest_model <- randomForest(URDFLOW1_STATENor ~ . - URDFLOW1 - X - SEQN - split_var,
+                      data=complete_data_dummy, 
+                      importance=TRUE)
+roc_rand_for_pred_raw <- predict(rand_forest_model, complete_data_dummy, type = 'prob')
+
+roc_pred_log <- prediction(roc_log_reg_pred_raw, complete_data_dummy$URDFLOW1_STATENor)
+roc_pred_dec_tree <- prediction(roc_dec_tree_pred_raw[,2], complete_data_dummy$URDFLOW1_STATENor)
+roc_pred_rand_for <- prediction(roc_rand_for_pred_raw[,2], complete_data_dummy$URDFLOW1_STATENor)
+
+plot1 <- performance(roc_pred_log, measure="tpr", x.measure="fpr")
+plot2 <- performance(roc_pred_dec_tree, measure="tpr", x.measure="fpr")
+plot3 <- performance(roc_pred_rand_for, measure="tpr", x.measure="fpr")
+
+plot(plot1, col="black")
+plot(plot2, add = TRUE, col = "Blue")
+plot(plot3, add = TRUE, col = "Red")
+```
+
+
+From the above model we can see that randomForest is providing 100% accuracy. However, the models were executed on the entire dataset and as we have seen earlier splitting the data into train and test decreases the accuracy. The worst performing model here is the decision tree (blue line) while Logistic Regression is in the middle of random forest and decision tree.  
+
+###__Developing the Precision Recall Curve__
+```{r warning=FALSE, message=FALSE}
+plot1 <- performance(roc_pred_log, measure="prec", x.measure="rec")
+plot2 <- performance(roc_pred_dec_tree, measure="prec", x.measure="rec")
+plot3 <- performance(roc_pred_rand_for, measure="prec", x.measure="rec")
+
+plot(plot1, col="black")
+plot(plot2, add = TRUE, col = "Blue")
+plot(plot3, add = TRUE, col = "Red")
+```
+
+The PR curve shows a poor performing Logistic Regression function.  
+
+
+

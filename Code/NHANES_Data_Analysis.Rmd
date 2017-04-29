@@ -1,0 +1,419 @@
+---
+title: "NHAHES_Data_Analysis"
+author: "Tanmaya Tripathi"
+date: "23 April 2017"
+output: 
+  html_document:
+    fig_height: 5
+    fig_width: 10
+    toc: yes
+    toc_depth: 5
+  pdf_document:
+    toc: yes
+  word_document: default
+---
+
+###__Libraries used__  
+* library(sqldf)
+* library(knitr)  
+* library(ggplot2)  
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+library(sqldf)
+library(knitr)
+library(ggplot2)
+options(scipen=999)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+###__Loading the Demographics Data__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ DEMO_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ DEMO_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ DEMO_F .csv", header = TRUE, sep = ",")
+table_20072008 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2007-2008 _ DEMO_E .csv", header = TRUE, sep = ",")
+table_20052006 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2005-2006 _ DEMO_D .csv", header = TRUE, sep = ",")
+table_20032004 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2003-2004 _ DEMO_C .csv", header = TRUE, sep = ",")
+table_20012002 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2001-2002 _ DEMO_B .csv", header = TRUE, sep = ",")
+table_19992000 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 1999-2000 _ DEMO .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")]
+table_20112012 <- table_20112012[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")]
+table_20092010 <- table_20092010[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")]
+table_20072008 <- table_20072008[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")]
+table_20052006 <- table_20052006[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHINC","DMDEDUC2")]
+table_20032004 <- table_20032004[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHINC","DMDEDUC2")]
+table_20012002 <- table_20012002[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHINC","DMDEDUC2")]
+table_19992000 <- table_19992000[,c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHINC","DMDEDUC2")]
+
+colnames(table_19992000) <- c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")
+colnames(table_20012002) <- c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")
+colnames(table_20032004) <- c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")
+colnames(table_20052006) <- c("RIDSTATR","RIAGENDR","SEQN","RIDAGEYR","RIDRETH1","DMDHHSIZ","INDHHIN2","DMDEDUC2")
+
+demographics <- rbind(table_20132014
+,table_20112012
+,table_20092010
+,table_20072008
+,table_20052006
+,table_20032004
+,table_20012002
+,table_19992000)
+```
+
+####__Columns important from demographics perspective__  
+* RIDAGEYR - Age in years at screening  
+* RIDRETH1 - Race/Hispanic origin w/ NH Asian  
+* DMDHHSIZ - Total number of people in the Household  
+* INDHHIN2 - Annual household income  
+* DMDEDUC2 - Education level - Adults 20+  
+  
+__Filtering out the data based on the following conditions-__  
+  
+__1.__ We are keeping data where both interview and examination of the patient has happened.  
+```{r warning=FALSE, message=FALSE}
+demographics <- subset(demographics, demographics$RIDSTATR == 2)
+```
+__2.__ For our analysis we will be working only with male patients.  
+```{r warning=FALSE, message=FALSE}
+demographics <- subset(demographics, demographics$RIAGENDR == 1)
+#demographics$RIAGENDR[demographics$RIAGENDR == 1]    <- "Male"
+```
+__3.__ The average urine flow rate for males age 14 to 45 is 21mL/sec. For our analysis we will be using the mentioned age group.  
+```{r warning=FALSE, message=FALSE}
+demographics <- subset(demographics, demographics$RIDAGEYR > 13 & demographics$RIDAGEYR < 46)
+```
+__4.__ Renaming the race factors-  
+```{r warning=FALSE, message=FALSE}
+demographics <- subset(demographics, !is.na(demographics$RIDRETH1))
+#demographics$RIDRETH3[demographics$RIDRETH3 == 1]    <- "Mexican American"
+#demographics$RIDRETH3[demographics$RIDRETH3 == 2]    <- "Other Hispanic"
+#demographics$RIDRETH3[demographics$RIDRETH3 == 3]    <- "Non-Hispanic White"
+#demographics$RIDRETH3[demographics$RIDRETH3 == 4]    <- "Non-Hispanic Black"
+#demographics$RIDRETH3[demographics$RIDRETH3 == 6]    <- "Non-Hispanic Asian"
+#demographics$RIDRETH3[demographics$RIDRETH3 == 7]    <- "Other Race - Including Multi-Racial"
+```
+__5.__ Factoring in Annual Household Income-  
+```{r warning=FALSE, message=FALSE}
+demographics <- subset(demographics, !is.na(demographics$INDHHIN2))
+demographics <- subset(demographics, demographics$INDHHIN2 != 77 & demographics$INDHHIN2 != 99)
+#demographics$INDHHIN2[demographics$INDHHIN2 == 1]    <- "$0 to $4,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 2]    <- "$5,000 to $9,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 3]    <- "$10,000 to $14,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 4]    <- "$15,000 to $19,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 5]    <- "$20,000 to $24,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 6]    <- "$25,000 to $34,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 7]    <- "$35,000 to $44,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 8]    <- "$45,000 to $54,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 9]    <- "$55,000 to $64,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 10]    <- "$65,000 to $74,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 12]    <- "$20,000 and Over"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 13]    <- "Under $20,000"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 14]    <- "$75,000 to $99,999"
+#demographics$INDHHIN2[demographics$INDHHIN2 == 15]    <- "$100,000 and Over"
+```
+__6.__ What is the highest education qualification for a patient-
+```{r warning=FALSE, message=FALSE}
+demographics <- subset(demographics, !is.na(demographics$DMDEDUC2))
+demographics <- subset(demographics, demographics$DMDEDUC2 != 9 & demographics$DMDEDUC2 != 7)
+#demographics$DMDEDUC2[demographics$DMDEDUC2 == 1]    <- "Less than 9th grade"
+#demographics$DMDEDUC2[demographics$DMDEDUC2 == 2]    <- "9-11th grade (Includes 12th grade with no diploma)"
+#demographics$DMDEDUC2[demographics$DMDEDUC2 == 3]    <- "High school graduate/GED or equivalent"
+#demographics$DMDEDUC2[demographics$DMDEDUC2 == 4]    <- "Some college or AA degree"
+#demographics$DMDEDUC2[demographics$DMDEDUC2 == 5]    <- "College graduate or above"
+```
+
+###__Loading the Urine Lab Data__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ UCFLOW_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ UCFLOW_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ UCFLOW_F .csv", header = TRUE, sep = ",")
+
+urine_lab <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+```
+
+####__Columns important from urine flow data perspective__  
+* URDFLOW1 - Urine #1 Flow Rate  
+
+__Filtering out the data based on the following conditions-__  
+  
+__1.__ We are keeping data where urine flow rate data is present.  
+```{r warning=FALSE, message=FALSE}
+urine_lab <- subset(urine_lab, !is.na(urine_lab$URDFLOW1))
+urine_lab$URDFLOW1_STATE <- ifelse(urine_lab$URDFLOW1 > 0.35, "Nor", "Abnor")
+```
+
+###__Loading the Alcohol Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ ALQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ ALQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ ALQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","ALQ101")]
+table_20112012 <- table_20112012[,c("SEQN","ALQ101")]
+table_20092010 <- table_20092010[,c("SEQN","ALQ101")]
+
+alcohol_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+alcohol_questionairre_data$ALQ101 <- ifelse(is.na(alcohol_questionairre_data$ALQ101), 2, alcohol_questionairre_data$ALQ101)
+alcohol_questionairre_data <- subset(alcohol_questionairre_data, alcohol_questionairre_data$ALQ101 != 9)
+```
+
+We have imputed the null values here with the patient saying that they do not have 12 drinks or more in a year. Therefore, for our understanding null value signifies a no (2) while yes is 1.  
+
+###__Loading the Blood Pressure and Cholestrol Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ BPQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ BPQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ BPQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","BPQ020","BPQ080")]
+table_20112012 <- table_20112012[,c("SEQN","BPQ020","BPQ080")]
+table_20092010 <- table_20092010[,c("SEQN","BPQ020","BPQ080")]
+
+bp_chol_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+bp_chol_questionairre_data <- subset(bp_chol_questionairre_data, bp_chol_questionairre_data$BPQ080 != 9)
+bp_chol_questionairre_data <- subset(bp_chol_questionairre_data, bp_chol_questionairre_data$BPQ020 != 9)
+```
+
+###__Loading the Dermatology Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ DEQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ DEQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ DEQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","DED031","DEQ034A","DEQ034D")]
+table_20112012 <- table_20112012[,c("SEQN","DED031","DEQ034A","DEQ034D")]
+table_20092010 <- table_20092010[,c("SEQN","DED031","DEQ034A","DEQ034D")]
+
+dermatology_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+dermatology_questionairre_data <- subset(dermatology_questionairre_data, dermatology_questionairre_data$DED031 !=77 & dermatology_questionairre_data$DED031 != 99)
+dermatology_questionairre_data <- subset(dermatology_questionairre_data, dermatology_questionairre_data$DEQ034A !=77 & dermatology_questionairre_data$DEQ034A != 99)
+dermatology_questionairre_data <- subset(dermatology_questionairre_data, dermatology_questionairre_data$DEQ034D !=77 & dermatology_questionairre_data$DEQ034D != 99)
+
+dermatology_questionairre_data <- subset(dermatology_questionairre_data, !is.na(dermatology_questionairre_data$DED031))
+dermatology_questionairre_data <- subset(dermatology_questionairre_data, !is.na(dermatology_questionairre_data$DEQ034A))
+dermatology_questionairre_data <- subset(dermatology_questionairre_data, !is.na(dermatology_questionairre_data$DEQ034D))
+```
+
+###__Loading the Diabetes Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ DIQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ DIQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ DIQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","DIQ010","DIQ050")]
+table_20112012 <- table_20112012[,c("SEQN","DIQ010","DIQ050")]
+table_20092010 <- table_20092010[,c("SEQN","DIQ010","DIQ050")]
+
+diabetes_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+diabetes_questionairre_data <- subset(diabetes_questionairre_data, diabetes_questionairre_data$DIQ010 <= 3)
+diabetes_questionairre_data <- subset(diabetes_questionairre_data, diabetes_questionairre_data$DIQ050 <= 2)
+
+diabetes_questionairre_data <- subset(diabetes_questionairre_data, !is.na(diabetes_questionairre_data$DIQ010))
+diabetes_questionairre_data <- subset(diabetes_questionairre_data, !is.na(diabetes_questionairre_data$DIQ050))
+```
+
+###__Loading the Diet Behavior Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ DBQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ DBQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ DBQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","DBQ197","DBQ229","DBQ235A","DBQ235B","DBQ235C","DBD905","DBD910")]
+table_20112012 <- table_20112012[,c("SEQN","DBQ197","DBQ229","DBQ235A","DBQ235B","DBQ235C","DBD905","DBD910")]
+table_20092010 <- table_20092010[,c("SEQN","DBQ197","DBQ229","DBQ235A","DBQ235B","DBQ235C","DBD905","DBD910")]
+
+diet_beh_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBQ197 <= 4)
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBQ229 <= 3)
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBQ235A <= 3)
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBQ235B <= 3)
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBQ235C <= 3)
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBD905 <= 200)
+diet_beh_questionairre_data <- subset(diet_beh_questionairre_data, diet_beh_questionairre_data$DBD910 <= 200)
+```
+
+###__Loading the Drug Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ DUQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ DUQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ DUQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","DUQ217","DUQ219")]
+table_20112012 <- table_20112012[,c("SEQN","DUQ217","DUQ219")]
+table_20092010 <- table_20092010[,c("SEQN","DUQ217","DUQ219")]
+
+drug_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+drug_questionairre_data$DUQ217 <- ifelse(is.na(drug_questionairre_data$DUQ217), 0, drug_questionairre_data$DUQ217)
+drug_questionairre_data$DUQ219 <- ifelse(is.na(drug_questionairre_data$DUQ219), 0, drug_questionairre_data$DUQ219)
+
+drug_questionairre_data <- subset(drug_questionairre_data, drug_questionairre_data$DUQ217 <= 5)
+drug_questionairre_data <- subset(drug_questionairre_data, drug_questionairre_data$DUQ219 <= 5)
+```
+
+###__Loading the Health Insurance Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ HIQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ HIQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ HIQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","HIQ011")]
+table_20112012 <- table_20112012[,c("SEQN","HIQ011")]
+table_20092010 <- table_20092010[,c("SEQN","HIQ011")]
+
+health_insurance_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+health_insurance_questionairre_data <- subset(health_insurance_questionairre_data, health_insurance_questionairre_data$HIQ011 <= 5)
+```
+
+###__Loading the Hospital Utilization Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ HUQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ HUQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ HUQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","HUQ010","HUQ030")]
+table_20112012 <- table_20112012[,c("SEQN","HUQ010","HUQ030")]
+table_20092010 <- table_20092010[,c("SEQN","HUQ010","HUQ030")]
+
+hospital_util_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+hospital_util_questionairre_data <- subset(hospital_util_questionairre_data, hospital_util_questionairre_data$HUQ010 <= 5)
+hospital_util_questionairre_data <- subset(hospital_util_questionairre_data, hospital_util_questionairre_data$HUQ030 <= 3)
+```
+
+###__Loading the Housing Char Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ HOQ_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ HOQ_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ HOQ_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","HOQ065")]
+table_20112012 <- table_20112012[,c("SEQN","HOQ065")]
+table_20092010 <- table_20092010[,c("SEQN","HOQ065")]
+
+housing_char_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+housing_char_questionairre_data <- subset(housing_char_questionairre_data, housing_char_questionairre_data$HOQ065 <= 3)
+```
+
+###__Loading the Kidney Conditions Questionairre Interview Data Set__
+```{r warning=FALSE, message=FALSE}
+table_20132014 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2013-2014 _ KIQ_U_H .csv", header = TRUE, sep = ",")
+table_20112012 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2011-2012 _ KIQ_U_G .csv", header = TRUE, sep = ",")
+table_20092010 <- read.csv(file = "M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/ 2009-2010 _ KIQ_U_F .csv", header = TRUE, sep = ",")
+
+table_20132014 <- table_20132014[,c("SEQN","KIQ022","KIQ026")]
+table_20112012 <- table_20112012[,c("SEQN","KIQ022","KIQ026")]
+table_20092010 <- table_20092010[,c("SEQN","KIQ022","KIQ026")]
+
+kidney_cond_questionairre_data <- rbind(table_20132014
+,table_20112012
+,table_20092010)
+
+kidney_cond_questionairre_data <- subset(kidney_cond_questionairre_data, kidney_cond_questionairre_data$KIQ022 <= 2)
+kidney_cond_questionairre_data <- subset(kidney_cond_questionairre_data, kidney_cond_questionairre_data$KIQ026 <= 2)
+```
+
+###__Joining Data__  
+The below sql query is used to join the data.  
+```{r warning=FALSE, message=FALSE}
+complete_data <- sqldf("SELECT de.SEQN,
+                               de.RIDAGEYR,
+                               de.RIDRETH1,
+                               de.DMDHHSIZ,
+                               de.INDHHIN2,
+                               de.DMDEDUC2,
+                               aqd.ALQ101,
+                               bpqd.BPQ020,
+                               bpqd.BPQ080,
+                               dqd.DED031,
+                               dqd.DEQ034A,
+                               dqd.DEQ034D,
+                               diqd.DIQ010,
+                               diqd.DIQ050,
+                               dbqd.DBQ197,
+                               dbqd.DBQ229,
+                               dbqd.DBQ235A,
+                               dbqd.DBQ235B,
+                               dbqd.DBQ235C,
+                               dbqd.DBD905,
+                               dbqd.DBD910,
+                               duqd.DUQ217,
+                               duqd.DUQ219,
+                               hiqd.HIQ011,
+                               huqd.HUQ010,
+                               huqd.HUQ030,
+                               hcqd.HOQ065,
+                               kcqd.KIQ022,
+                               kcqd.KIQ026,
+                               la.URDFLOW1,
+                               la.URDFLOW1_STATE
+                        FROM   demographics de LEFT OUTER JOIN urine_lab la ON de.SEQN = la.SEQN
+                                               LEFT OUTER JOIN alcohol_questionairre_data aqd ON de.SEQN = aqd.SEQN
+                                               LEFT OUTER JOIN bp_chol_questionairre_data bpqd ON de.SEQN = bpqd.SEQN
+                                               LEFT OUTER JOIN dermatology_questionairre_data dqd ON de.SEQN = dqd.SEQN
+                                               LEFT OUTER JOIN diabetes_questionairre_data diqd ON de.SEQN = diqd.SEQN
+                                               LEFT OUTER JOIN diet_beh_questionairre_data dbqd ON de.SEQN = dbqd.SEQN
+                                               LEFT OUTER JOIN drug_questionairre_data duqd ON de.SEQN = duqd.SEQN
+                                               LEFT OUTER JOIN health_insurance_questionairre_data hiqd ON de.SEQN = hiqd.SEQN
+                                               LEFT OUTER JOIN hospital_util_questionairre_data huqd ON de.SEQN = huqd.SEQN
+                                               LEFT OUTER JOIN housing_char_questionairre_data hcqd ON de.SEQN = hcqd.SEQN
+                                               LEFT OUTER JOIN kidney_cond_questionairre_data kcqd ON de.SEQN = kcqd.SEQN")
+
+complete_data <- subset(complete_data, !is.na(complete_data$URDFLOW1))
+
+for(i in 1:ncol(complete_data)){
+  if(nrow(complete_data[is.na(complete_data[,i]),])>0)
+    print(colnames(complete_data[i]))
+}
+
+complete_data <- subset(complete_data, !is.na(complete_data$BPQ020))
+complete_data <- subset(complete_data, !is.na(complete_data$DED031))
+complete_data <- subset(complete_data, !is.na(complete_data$DIQ010))
+complete_data <- subset(complete_data, !is.na(complete_data$DBQ197))
+complete_data <- subset(complete_data, !is.na(complete_data$DUQ217))
+complete_data <- subset(complete_data, !is.na(complete_data$HIQ011))
+complete_data <- subset(complete_data, !is.na(complete_data$HUQ010))
+complete_data <- subset(complete_data, !is.na(complete_data$HOQ065))
+table(complete_data$URDFLOW1_STATE)
+
+write.csv(complete_data, paste("M:/Documents/ML_Healthcare_Final_Project/NHANES_Dataset/complete_data.csv"))
+```
+
+
+
+
+
+
+
+
+
+
+
